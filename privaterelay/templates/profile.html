@@ -145,6 +145,32 @@
             </div> <!-- end card-->
           </div> <!-- end relay-email-->
         {% endfor %}
+
+
+        <!-- phone numbers -->
+
+        <div class="flx flx-row dashboard-header inset">
+          <h2 class="section-headline dashboard-headline">Manage your Relay phone numbers</h2>
+        </div>
+        <div class="flx flx-row flx-end inset wrap-col-600">
+          <form action="/phones/" class="dash-create" method="POST">
+            <input type="hidden" name="api_token" value="{{ user.profile_set.first.api_token }}">
+            <button
+            class="blue-btn-states dash-create-new-relay flx al-cntr jst-cntr {%if relay_addresses|length == settings.MAX_NUM_BETA_ALIASES %} btn-disabled {% endif %}"
+            type="submit" value="Generate new phone number" data-event-label="Create New Relay Phone Number"
+
+            {% if relay_addresses|length == settings.MAX_NUM_PHONE_NUMBERS %}
+              title="You have reached the alias limit for our beta release."
+            {% else %}
+              title="Generate new phone number"
+            {% endif %}
+            >
+            <span class="generate-new-relay-icon"></span>
+            <span class="generate-new-alias-text">Generate New Phone Number</span>
+            </button>
+          </form>
+        </div>
+
       </div><!-- end dashboard-container -->
     </div>
   </div>

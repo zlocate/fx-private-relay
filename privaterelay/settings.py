@@ -218,6 +218,7 @@ TEMPLATES = [
 ]
 
 MAX_NUM_BETA_ALIASES = 5
+MAX_NUM_PHONE_NUMBERS = 1
 
 WSGI_APPLICATION = 'privaterelay.wsgi.application'
 
