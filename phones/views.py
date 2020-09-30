@@ -24,6 +24,62 @@ PROMPT_MESSAGE = "For how many minutes do you need a relay number?"
 
 
 @csrf_exempt
+def index(request):
+    incr_if_enabled('phones_index', 1)
+    request_data = get_post_data_from_request(request)
+    is_validated_create = (
+        request_data.get('method_override', None) is None and
+        request_data.get("api_token", False)
+    )
+    is_validated_user = (
+        request.user.is_authenticated and
+        request_data.get("api_token", False)
+    )
+    if is_validated_create:
+        return _index_POST(request)
+    if not is_validated_user:
+        return redirect('profile')
+    if request.method == 'POST':
+        return _index_POST(request)
+    incr_if_enabled('emails_index_get', 1)
+    return redirect('profile')
+
+
+def _index_POST(request):
+    request_data = get_post_data_from_request(request)
+    api_token = request_data.get('api_token', None)
+    if not api_token:
+        raise PermissionDenied
+    user_profile = _get_user_profile(request, api_token)
+    if request_data.get('method_override', None) == 'PUT':
+        return _index_PUT(request_data, user_profile)
+    if request_data.get('method_override', None) == 'DELETE':
+        return _index_DELETE(request_data, user_profile)
+
+    incr_if_enabled('phones_index_post', 1)
+    existing_addresses = RelayAddress.objects.filter(user=user_profile.user)
+    if existing_addresses.count() >= settings.MAX_NUM_BETA_ALIASES:
+        if 'moz-extension' in request.headers.get('Origin', ''):
+            return HttpResponse('Payment Required', status=402)
+        messages.error(
+            request, "You already have 5 email addresses. Please upgrade."
+        )
+        return redirect('profile')
+
+    relay_address = RelayAddress.make_relay_address(user_profile.user)
+    if 'moz-extension' in request.headers.get('Origin', ''):
+        address_string = '%s@%s' % (
+            relay_address.address, relay_from_domain(request)['RELAY_DOMAIN']
+        )
+        return JsonResponse({
+            'id': relay_address.id,
+            'address': address_string
+        }, status=201)
+
+    return redirect('profile')
+
+
+@csrf_exempt
 def main_twilio_webhook(request):
     resp = MessagingResponse()
     from_num = request.POST['From']
