@@ -6,12 +6,15 @@ from phonenumbers import PhoneNumberFormat
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
 
-from django.core.exceptions import MultipleObjectsReturned
+from django.core.exceptions import MultipleObjectsReturned, PermissionDenied
 from django.http import HttpResponse, HttpResponseNotFound
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.views.decorators.csrf import csrf_exempt
 
-from .models import Session
+from emails.utils import get_post_data_from_request, incr_if_enabled
+from emails.views import _get_user_profile
+
+from .models import Session, TemporaryNumber
 
 
 account_sid = config('TWILIO_ACCOUNT_SID', None)
@@ -51,13 +54,15 @@ def _index_POST(request):
     if not api_token:
         raise PermissionDenied
     user_profile = _get_user_profile(request, api_token)
+    '''
     if request_data.get('method_override', None) == 'PUT':
         return _index_PUT(request_data, user_profile)
     if request_data.get('method_override', None) == 'DELETE':
         return _index_DELETE(request_data, user_profile)
+    '''
 
     incr_if_enabled('phones_index_post', 1)
-    existing_addresses = RelayAddress.objects.filter(user=user_profile.user)
+    existing_tmp_num = TemporaryNumber.objects.filter(user=user_profile.user)
     if existing_addresses.count() >= settings.MAX_NUM_BETA_ALIASES:
         if 'moz-extension' in request.headers.get('Origin', ''):
             return HttpResponse('Payment Required', status=402)
