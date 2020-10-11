@@ -5,10 +5,12 @@ from phonenumbers import parse, format_number
 from phonenumbers import PhoneNumberFormat
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
+from twilio.twiml.voice_response import VoiceResponse
 
 from django.core.exceptions import MultipleObjectsReturned, PermissionDenied
 from django.http import HttpResponse, HttpResponseNotFound
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 
 from emails.utils import get_post_data_from_request, incr_if_enabled
@@ -82,6 +84,45 @@ def _index_POST(request):
         }, status=201)
 
     return redirect('profile')
+
+
+@csrf_exempt
+def twilio_voice_webhook(request):
+    voice_resp = VoiceResponse()
+
+    digits = request.POST.get('Digits', None)
+
+    if digits:
+        to_num = '+1%s' % digits
+        from_num = request.POST.get('From', None)
+        session = service.sessions.create(ttl=600,) # 10m default?
+        from_participant = service.sessions(session.sid).participants.create(
+            identifier=from_num
+        )
+        service.sessions(session.sid).participants.create(
+            identifier=to_num
+        )
+        spoken_number = format_number(
+            parse(to_num), PhoneNumberFormat.NATIONAL
+        )
+        voice_resp.say('Dialing %s' % spoken_number)
+        voice_resp.dial(
+            from_participant.proxy_identifier, answer_on_bridge=True
+        )
+        return HttpResponse(str(voice_resp), content_type='text/xml')
+
+
+    voice_resp.say("Welcome to Relay.")
+    with voice_resp.gather(
+        action=reverse(twilio_voice_webhook), finish_on_key='#', timeout=20
+    ) as gather:
+        gather.say('To make an anonymous call, dial the number and press #')
+        voice_resp.redirect(reverse(twilio_voice_webhook))
+        return HttpResponse(str(voice_resp), content_type='text/xml')
+
+    voice_resp.say('Did not receive a number to call. Please try again.')
+    voice_resp.redirect(reverse(twilio_voice_webhook))
+    return HttpResponse(str(voice_resp), content_type='text/xml')
 
 
 @csrf_exempt
